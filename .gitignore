@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Data files (keep raw/processed directories, ignore data files)
+data/raw/*/*.csv
+data/raw/*/*/*.csv
+data/raw/*/*.json
+data/raw/*/*.txt
+data/raw/*/*.xlsx
+data/processed/*.csv
+data/processed/*.parquet
+data/processed/*.json
+
+# But keep README files
+!data/README.md
+!data/**/README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+
+# Large files
+*.zip
+*.tar.gz
+*.pkl
+*.h5
+*.hdf5
