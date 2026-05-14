@@ -6,6 +6,7 @@ PM2.5 sensor data from Purple Air and weather data from NOAA.
 """
 
 import pandas as pd
+from pandas.errors import EmptyDataError
 import numpy as np
 from pathlib import Path
 from typing import Union, List, Optional
@@ -48,7 +49,14 @@ class PurpleAirLoader:
         
         # Load based on file extension
         if filepath.suffix.lower() == '.csv':
-            df = pd.read_csv(filepath)
+            if filepath.stat().st_size == 0:
+                raise ValueError("CSV file is empty (0 bytes)")
+            try:
+                df = pd.read_csv(filepath)
+            except EmptyDataError as e:
+                raise ValueError(
+                    "CSV has no header or data rows (empty or whitespace-only file)"
+                ) from e
         elif filepath.suffix.lower() == '.json':
             df = pd.read_json(filepath)
         else:
@@ -109,6 +117,18 @@ class PurpleAirLoader:
         csv_files  = [f for f in self.data_dir.rglob("*.csv")  if f.parent != self.data_dir]
         json_files = [f for f in self.data_dir.rglob("*.json") if f.parent != self.data_dir]
         all_files  = csv_files + json_files
+
+        # PurpleAir tool sometimes leaves a stray empty CSV named like
+        # " 2022-08-01 2022-09-30 60-Minute Average.csv" (leading space, no sensor id).
+        bad_names = [f for f in all_files if f.name.startswith(" ")]
+        if bad_names:
+            # Inform only — not a data problem once bogus exports are excluded
+            print(
+                "Skipping bogus export(s) (filename starts with space; empty/failed "
+                "download — you can delete these files):\n  "
+                + "\n  ".join(str(p) for p in bad_names)
+            )
+            all_files = [f for f in all_files if f not in bad_names]
         
         if not all_files:
             raise FileNotFoundError(f"No sensor data files found under {self.data_dir}")
