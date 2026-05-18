@@ -102,16 +102,31 @@ We use **lagged PM2.5** (e.g. `pm2.5_lrapa_lag_6h`) as the exposure variable so 
 3. `03_initial_analysis.ipynb` — EDA with side-by-side event comparisons
 4. `04_gam_modeling.ipynb` — GAM: lagged PM2.5 → weather (pooled + per-event)
 5. `05_moisture_ccn_hypothesis.ipynb` — moisture/CCN focus with CV (pooled + per-event)
+6. `06_radiation_dtr.ipynb` — DTR and radiation suppression mechanism (primary result)
+7. `07_boundary_layer.ipynb` — wind speed, temperature depression, boundary layer suppression
 
 ### What notebook 02 produces
 - `data/processed/analysis_data.csv` — 3,240 rows, 87 columns, `event` column labels each row
 - Key columns: `pm2.5_lrapa` (primary PM2.5), `pm2.5_lrapa_regulatory` (LRAPA reference), all weather variables, engineered features (rolling means, lags at 1h/3h/6h/12h/24h, wind sin/cos, calendar fields)
 
-### What the analysis has found so far (run on 2022-only data)
-- **Strongest contemporaneous correlation:** `pressure_hpa` vs PM2.5 (r ≈ −0.35) — but this is likely a **shared synoptic driver** (stagnant high-pressure → smoke pooling), not PM2.5 causing pressure changes
-- **GAM (notebook 04, 2022 only):** high train R² (~0.42) but negative test R² — model overfits; not a stable out-of-sample signal
-- **Moisture / CCN (notebook 05, 2022 only):** lagged PM2.5 does not improve CV prediction of RH or dewpoint depression above thermodynamic controls — signal not detected in 2022 alone
-- **2020 data not yet incorporated into analysis notebooks** — run 02 first to regenerate `analysis_data.csv` with both events
+### Analysis findings (combined 2020 + 2022 dataset)
+
+**Primary result — Radiation / DTR (notebook 06):**
+- Smoke days had a **~5°F narrower diurnal temperature range** during the Holiday Farm Fire 2020 (Welch t-test p ≈ 0.046, medium Cohen's d)
+- Daily r(PM2.5, DTR) ≈ −0.20 after controlling for day-of-year via GAM
+- Hour-of-day temperature profiles show afternoon suppression on smoke days, consistent with reduced solar heating
+- 2022 underpowered (only 4 smoke days) — DTR signal not significant
+
+**Secondary result — Boundary layer / Wind (notebook 07):**
+- Wind speeds significantly lower during smoke hours in 2020 (Welch t-test p < 0.001)
+- Lagged PM2.5 correlates negatively with subsequent wind speeds (lags 0–6h)
+- Partial correlation (controlling for pressure) partially attenuates the signal — confounding by synoptic high pressure is real but does not fully explain the relationship
+
+**Null result — CCN / Moisture (notebook 05):**
+- Lagged PM2.5 does not improve cross-validated prediction of RH or dewpoint depression beyond weather controls in either event
+- Interpreted as a true surface-level null for this mechanism; CCN effects are primarily cloud-scale and not directly observable at a single ASOS station
+
+**Pressure correlation:** r(pressure, PM2.5) ≈ −0.35 — likely a shared synoptic driver (stagnant high-pressure → smoke pooling); not interpreted as PM2.5 causing pressure changes
 
 ---
 
@@ -126,11 +141,13 @@ PM2.5-weather/
 │   │   └── lrapa/       ← LRAPA regulatory Excel files (2020 + 2022)
 │   └── processed/       ← analysis_data.csv + figures (gitignored)
 ├── notebooks/
-│   ├── 01_data_exploration.ipynb    ← raw data inspection
-│   ├── 02_data_cleaning.ipynb       ← full ETL pipeline → analysis_data.csv
-│   ├── 03_initial_analysis.ipynb    ← EDA, side-by-side event comparisons
-│   ├── 04_gam_modeling.ipynb        ← GAM: PM2.5 lag → weather (pooled + per-event)
-│   └── 05_moisture_ccn_hypothesis.ipynb  ← moisture/CCN focus, M0 vs M1 CV
+│   ├── 01_data_exploration.ipynb         ← raw data inspection
+│   ├── 02_data_cleaning.ipynb            ← full ETL pipeline → analysis_data.csv
+│   ├── 03_initial_analysis.ipynb         ← EDA, side-by-side event comparisons
+│   ├── 04_gam_modeling.ipynb             ← GAM: PM2.5 lag → weather (pooled + per-event)
+│   ├── 05_moisture_ccn_hypothesis.ipynb  ← moisture/CCN focus, M0 vs M1 CV
+│   ├── 06_radiation_dtr.ipynb            ← DTR + radiation suppression (primary result)
+│   └── 07_boundary_layer.ipynb           ← wind speed, BL suppression
 ├── scripts/
 │   ├── find_purpleair_sensors.py    ← API query to build eugene_sensors.csv
 │   └── prepare_download_list.py     ← builds download CSVs; --year 2020 or 2022
@@ -150,19 +167,16 @@ PM2.5-weather/
 
 ## Immediate Next Steps
 
-1. **Re-run `02_data_cleaning.ipynb`** (Restart Kernel → Run All) to generate the combined 3,240-row `analysis_data.csv` with both fire events
-2. **Run `03_initial_analysis.ipynb`** — will now show side-by-side event comparisons in all plots
-3. **Run `04_gam_modeling.ipynb`** — pooled GAMs + per-event partial effect comparison
-4. **Run `05_moisture_ccn_hypothesis.ipynb`** — pooled CV + per-event M0 vs M1 comparison
-5. **Interpret results:** if signal appears in 2020 (much higher PM2.5) but not 2022, that establishes a minimum-exposure threshold argument; if neither, frame as a clean null result with identifiable detection limits
+1. Run all notebooks in order (02 → 03 → 04 → 05 → 06 → 07) on the combined dataset
+2. Write the thesis results section using the summary outputs from notebooks 06 and 07 as primary evidence
+3. Use notebook 05 Section 8 to frame the CCN null result
 
 ---
 
 ## Key Open Decisions
 
-- Whether to add **diurnal temperature range** as an outcome (radiation/mixing mechanism — may be more detectable than RH)
 - Final presentation format (Jupyter notebook + short paper)
-- How to frame results: positive association, null result, or upper-bound-on-detectability
+- Whether to include the 2022 Cedar Creek event as a secondary comparison or focus entirely on 2020
 
 ---
 
