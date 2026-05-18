@@ -180,19 +180,38 @@ class DataCleaner:
         regulatory-grade monitors during wildfire smoke events. Results
         are clipped to ≥ 0.
 
+        Handles two download-tool naming conventions:
+          - Modern (2022+): 'pm2.5_cf_1_a'
+          - Legacy (pre-2022): 'pm2.5_cf_1' (no _a suffix)
+
         Args:
             df: DataFrame containing the CF=1 PM2.5 column
-            cf1_col: Name of the CF=1 channel A column
+            cf1_col: Preferred name of the CF=1 channel A column
 
         Returns:
             DataFrame with new 'pm2.5_lrapa' column added
         """
         df = df.copy()
-        if cf1_col not in df.columns:
-            warnings.warn(f"Column '{cf1_col}' not found; skipping LRAPA correction")
+        legacy_col = cf1_col.replace('_cf_1_a', '_cf_1')
+
+        if cf1_col in df.columns and legacy_col in df.columns:
+            # Mixed download: some rows have _cf_1_a (2022+), others have _cf_1 (pre-2022).
+            # Coalesce per-row: use _cf_1_a where non-null, fall back to _cf_1.
+            cf1_vals = df[cf1_col].fillna(df[legacy_col])
+            used_col = f"{cf1_col} / {legacy_col} (coalesced)"
+        elif cf1_col in df.columns:
+            cf1_vals = df[cf1_col]
+            used_col = cf1_col
+        elif legacy_col in df.columns:
+            cf1_vals = df[legacy_col]
+            used_col = legacy_col
+        else:
+            warnings.warn(f"Neither '{cf1_col}' nor '{legacy_col}' found; "
+                          "skipping LRAPA correction")
             return df
-        df['pm2.5_lrapa'] = (0.5 * df[cf1_col] - 0.66).clip(lower=0)
-        print(f"Applied LRAPA correction to '{cf1_col}' → 'pm2.5_lrapa'")
+
+        df['pm2.5_lrapa'] = (0.5 * cf1_vals - 0.66).clip(lower=0)
+        print(f"Applied LRAPA correction to '{used_col}' → 'pm2.5_lrapa'")
         return df
 
     def flag_ab_channel_disagreement(self, df: pd.DataFrame,
@@ -220,14 +239,30 @@ class DataCleaner:
             DataFrame with 'ab_channel_flag' boolean column added
         """
         df = df.copy()
-        if col_a not in df.columns or col_b not in df.columns:
-            warnings.warn(f"Columns '{col_a}' and/or '{col_b}' not found; skipping A/B QC")
+        legacy_a = col_a.replace('_cf_1_a', '_cf_1')
+
+        # Build a per-row channel-A series: prefer col_a, fall back to legacy per row
+        if col_a in df.columns and legacy_a in df.columns:
+            a_vals = df[col_a].fillna(df[legacy_a])
+        elif col_a in df.columns:
+            a_vals = df[col_a]
+        elif legacy_a in df.columns:
+            a_vals = df[legacy_a]
+        else:
+            warnings.warn(f"Neither '{col_a}' nor '{legacy_a}' found; skipping A/B QC")
+            df['ab_channel_flag'] = False
             return df
 
-        abs_diff = (df[col_a] - df[col_b]).abs()
-        max_val  = df[[col_a, col_b]].max(axis=1).replace(0, np.nan)
-        min_val  = df[[col_a, col_b]].min(axis=1)
-        ratio    = min_val / max_val
+        if col_b not in df.columns:
+            warnings.warn(f"Column '{col_b}' not found; skipping A/B QC")
+            df['ab_channel_flag'] = False
+            return df
+
+        abs_diff = (a_vals - df[col_b]).abs()
+        b_vals  = df[col_b]
+        max_val = pd.concat([a_vals, b_vals], axis=1).max(axis=1).replace(0, np.nan)
+        min_val = pd.concat([a_vals, b_vals], axis=1).min(axis=1)
+        ratio   = min_val / max_val
 
         df['ab_channel_flag'] = (abs_diff > diff_threshold) & (ratio < ratio_threshold)
         n_flagged = df['ab_channel_flag'].sum()
