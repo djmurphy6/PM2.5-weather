@@ -25,8 +25,10 @@ BBOX = {
     "selng": -122.85,
 }
 
-# Only include sensors created before this date (must have 2020 data)
-CUTOFF_DATE = datetime(2022, 8, 1, tzinfo=timezone.utc)
+# Include any sensor created before the end of the latest download window (2022-09-30).
+# Sensors created before 2020-10-15 will have at least partial 2020 coverage;
+# prepare_download_list.py --year 2020 filters further.
+CUTOFF_DATE = datetime(2022, 9, 30, tzinfo=timezone.utc)
 CUTOFF_TS   = int(CUTOFF_DATE.timestamp())
 
 PURPLEAIR_API = "https://api.purpleair.com/v1/sensors"
