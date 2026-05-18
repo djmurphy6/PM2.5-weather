@@ -11,6 +11,22 @@ from typing import Optional, List, Tuple
 import warnings
 from scipy import stats
 
+# Fire-event labels keyed by calendar year (Pacific timestamps)
+FIRE_EVENT_BY_YEAR = {
+    2020: 'Holiday Farm Fire 2020',
+    2022: 'Cedar Creek Fire 2022',
+}
+
+
+def assign_fire_event(df: pd.DataFrame, ts_col: str = 'timestamp') -> pd.DataFrame:
+    """Add ``event`` column from timestamp year (for per-event lags/rolls)."""
+    out = df.copy()
+    if 'year' not in out.columns and ts_col in out.columns:
+        out['year'] = out[ts_col].dt.year
+    if 'year' in out.columns:
+        out['event'] = out['year'].map(FIRE_EVENT_BY_YEAR).fillna('other')
+    return out
+
 
 class DataCleaner:
     """Clean and validate air quality and weather data."""
@@ -519,62 +535,68 @@ class DataMerger:
     def add_rolling_features(self,
                             df: pd.DataFrame,
                             columns: List[str],
-                            windows: List[int] = [6, 12, 24]) -> pd.DataFrame:
+                            windows: List[int] = [6, 12, 24],
+                            group_col: Optional[str] = None) -> pd.DataFrame:
         """
         Add rolling average features.
-        
-        Args:
-            df: DataFrame (must be sorted by timestamp)
-            columns: Columns to create rolling features for
-            windows: List of window sizes (in number of records)
-            
-        Returns:
-            DataFrame with rolling features
+
+        If ``group_col`` is set (e.g. ``'event'``), windows do not span across
+        groups — required when the panel has disjoint fire seasons.
         """
         df = df.copy()
-        
-        for col in columns:
-            if col not in df.columns:
-                continue
-            
-            for window in windows:
-                # Rolling mean
-                df[f'{col}_rolling_mean_{window}h'] = (
-                    df[col].rolling(window=window, min_periods=1).mean()
-                )
-                
-                # Rolling std
-                df[f'{col}_rolling_std_{window}h'] = (
-                    df[col].rolling(window=window, min_periods=1).std()
-                )
-        
-        return df
-    
+        ts_col = 'timestamp' if 'timestamp' in df.columns else None
+
+        def _apply(grp: pd.DataFrame) -> pd.DataFrame:
+            if ts_col:
+                grp = grp.sort_values(ts_col)
+            for col in columns:
+                if col not in grp.columns:
+                    continue
+                for window in windows:
+                    roll = grp[col].rolling(window=window, min_periods=1)
+                    grp[f'{col}_rolling_mean_{window}h'] = roll.mean()
+                    grp[f'{col}_rolling_std_{window}h'] = roll.std()
+            return grp
+
+        if group_col and group_col in df.columns:
+            out = df.groupby(group_col, sort=False, group_keys=False).apply(_apply)
+            if ts_col:
+                out = out.sort_values(ts_col)
+            return out
+
+        return _apply(df)
+
     def add_lag_features(self,
                         df: pd.DataFrame,
                         columns: List[str],
-                        lags: List[int] = [1, 6, 12, 24]) -> pd.DataFrame:
+                        lags: List[int] = [1, 6, 12, 24],
+                        group_col: Optional[str] = None) -> pd.DataFrame:
         """
         Add lagged features.
-        
-        Args:
-            df: DataFrame (must be sorted by timestamp)
-            columns: Columns to create lag features for
-            lags: List of lag periods (in number of records)
-            
-        Returns:
-            DataFrame with lag features
+
+        If ``group_col`` is set (e.g. ``'event'``), lags reset at each group
+        boundary so disjoint seasons are not linked.
         """
         df = df.copy()
-        
-        for col in columns:
-            if col not in df.columns:
-                continue
-            
-            for lag in lags:
-                df[f'{col}_lag_{lag}h'] = df[col].shift(lag)
-        
-        return df
+        ts_col = 'timestamp' if 'timestamp' in df.columns else None
+
+        def _apply(grp: pd.DataFrame) -> pd.DataFrame:
+            if ts_col:
+                grp = grp.sort_values(ts_col)
+            for col in columns:
+                if col not in grp.columns:
+                    continue
+                for lag in lags:
+                    grp[f'{col}_lag_{lag}h'] = grp[col].shift(lag)
+            return grp
+
+        if group_col and group_col in df.columns:
+            out = df.groupby(group_col, sort=False, group_keys=False).apply(_apply)
+            if ts_col:
+                out = out.sort_values(ts_col)
+            return out
+
+        return _apply(df)
 
 
 def aggregate_purpleair_sensors(pa_clean: pd.DataFrame) -> pd.DataFrame:
@@ -682,16 +704,21 @@ def create_full_analysis_dataset(purpleair_df: pd.DataFrame,
     # ── 5. Feature engineering ───────────────────────────────────────────────
     if add_features:
         print("\n5. Adding features...")
+        merged = merged.sort_values('timestamp').reset_index(drop=True)
         merged = merger.add_time_features(merged)
+        merged = assign_fire_event(merged)
         merged = merger.add_wind_components(merged)
+        print("   Rolling/lag features computed within each fire event (no cross-season leakage)")
         merged = merger.add_rolling_features(
             merged, columns=['pm2.5_lrapa', 'temperature_f', 'humidity'],
-            windows=[3, 6, 12, 24]
+            windows=[3, 6, 12, 24],
+            group_col='event',
         )
         merged = merger.add_lag_features(
             merged, columns=['pm2.5_lrapa', 'temperature_f', 'humidity',
                              'wind_speed_mph', 'pressure_hpa'],
-            lags=[1, 3, 6, 12, 24]
+            lags=[1, 3, 6, 12, 24],
+            group_col='event',
         )
 
     # ── 6. Outlier removal ──────────────────────────────────────────────────

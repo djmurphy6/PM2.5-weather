@@ -82,6 +82,7 @@ We use **lagged PM2.5** (e.g. `pm2.5_lrapa_lag_6h`) as the exposure variable so 
 
 **Key modeling decisions:**
 - Temporal 80/20 train/test split (not random) to avoid data leakage
+- **Lags and rolling features computed within each `event`** (no cross-season leakage between 2020 and 2022)
 - `TimeSeriesSplit` CV in notebook 05 for stable out-of-sample estimates
 - Nested model comparison (M0 = controls only vs M1 = controls + PM2.5 lag) to isolate PM2.5's contribution
 - Both pooled (all data) and **per-event** models to check consistency across fire events
