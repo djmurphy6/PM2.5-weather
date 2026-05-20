@@ -97,6 +97,8 @@ We use **lagged PM2.5** (e.g. `pm2.5_lrapa_lag_6h`) as the exposure variable so 
 
 **All notebooks runnable as of May 17, 2026.**
 
+**Presentation polish:** Notebook markdown and code comments in notebooks 01–07 have been revised to read as thesis-facing explanatory text rather than coder-directed notes. Cached loader messages were also updated to avoid conversational phrasing in exported notebook outputs.
+
 ### Notebook execution order
 1. `02_data_cleaning.ipynb` — must run first; produces `data/processed/analysis_data.csv`
 2. `01_data_exploration.ipynb` — raw data inspection (optional, run separately)

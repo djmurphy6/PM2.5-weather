@@ -125,7 +125,7 @@ class PurpleAirLoader:
             # Inform only — not a data problem once bogus exports are excluded
             print(
                 "Skipping bogus export(s) (filename starts with space; empty/failed "
-                "download — you can delete these files):\n  "
+                "download; excluded from processing):\n  "
                 + "\n  ".join(str(p) for p in bad_names)
             )
             all_files = [f for f in all_files if f not in bad_names]
